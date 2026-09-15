@@ -124,24 +124,38 @@
 
 <div class="login-screen" id="loginScreen">
   <div class="login-box" id="loginBox">
+    <svg viewBox="0 0 300 300" width="88" height="88" role="img" aria-label="Zambo Digital" style="display:block;margin:0 auto 10px;">
+      <defs>
+        <linearGradient id="gradBodyLogo" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#FF3D77"/>
+          <stop offset="100%" stop-color="#23E5DB"/>
+        </linearGradient>
+        <linearGradient id="gradHeadLogo" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#23E5DB"/>
+          <stop offset="100%" stop-color="#C6FF3D"/>
+        </linearGradient>
+      </defs>
+      <circle cx="150" cy="46" r="6" fill="#C6FF3D"/>
+      <rect x="95" y="150" width="110" height="100" rx="34" fill="url(#gradBodyLogo)"/>
+      <rect x="158" y="148" width="16" height="60" rx="8" fill="url(#gradBodyLogo)"/>
+      <circle cx="150" cy="110" r="62" fill="url(#gradHeadLogo)"/>
+      <ellipse cx="128" cy="106" rx="9" ry="12" fill="#150F2E"/>
+      <ellipse cx="172" cy="106" rx="9" ry="12" fill="#150F2E"/>
+      <path d="M122,132 Q150,152 178,132" stroke="#150F2E" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <polygon points="105,95 113,90 113,100" fill="#150F2E" opacity="0.15"/>
+      <polygon points="195,95 187,90 187,100" fill="#150F2E" opacity="0.15"/>
+    </svg>
     <h1>Seguimiento de Proyecto</h1>
     <div class="subtitle">Iniciá sesión con la cuenta de Google con la que te dieron de alta en Zambo.</div>
     <div id="googleBtn" style="display:flex;justify-content:center;margin-bottom:6px;"></div>
     <div class="login-error" id="loginError"></div>
   </div>
-  <div class="login-box" id="preConfigBox">
-    <button type="button" class="gear-btn" id="togglePreConfig">⚙ Configuración (backend / Google Client ID)</button>
-    <div id="preConfigFields" style="display:none;margin-top:12px;">
-      <div class="field" style="margin-bottom:10px;">
-        <label for="loginApiUrl">URL del backend</label>
-        <input type="text" id="loginApiUrl" placeholder="http://localhost:5000">
-      </div>
-      <div class="field">
-        <label for="googleClientId">Google Client ID</label>
-        <input type="text" id="googleClientId" placeholder="xxxxx.apps.googleusercontent.com">
-      </div>
-      <button type="button" class="btn btn-primary" id="guardarPreConfig" style="width:100%;margin-top:10px;">Guardar</button>
-    </div>
+  <div class="login-box" id="pagoBox" style="display:none;">
+    <h1>Falta activar tu acceso</h1>
+    <div class="subtitle" id="pagoMensaje"></div>
+    <div style="font-size:30px;font-weight:800;margin:10px 0;" id="pagoPrecio"></div>
+    <button type="button" class="btn btn-primary" style="width:100%;margin-top:6px;" id="pagoPagarBtn">Pagar membresía</button>
+    <button type="button" class="btn btn-ghost" style="width:100%;margin-top:8px;" id="pagoReintentarBtn">Ya pagué, reintentar</button>
   </div>
 </div>
 
@@ -283,11 +297,11 @@
 <script>
 (function(){
   const TOKEN_KEY = 'seg3-token';
-  const API_KEY = 'seg3-api-url';
-  const CLIENT_ID_KEY = 'seg3-google-client-id';
 
-  let apiUrl = 'http://localhost:5000';
-  let googleClientId = '';
+  // Valores fijos de producción — no hace falta que cada usuario los configure.
+  const apiUrl = 'https://seguimiento-backend-e7mn.onrender.com';
+  const googleClientId = '90319695814-p175gp84phvcs57h4b55bubk6mvi1rbu.apps.googleusercontent.com';
+
   let token = null;
   let miNombre = '', miEmail = '', miRol = '', miId = null;
   let ultimoCredential = null;
@@ -307,19 +321,6 @@
     });
   }
 
-  // ---- Config pre-login ----
-  document.getElementById('togglePreConfig').addEventListener('click', function(){
-    const f = document.getElementById('preConfigFields');
-    f.style.display = f.style.display === 'none' ? 'block' : 'none';
-  });
-  document.getElementById('guardarPreConfig').addEventListener('click', async function(){
-    apiUrl = document.getElementById('loginApiUrl').value.trim() || 'http://localhost:5000';
-    googleClientId = document.getElementById('googleClientId').value.trim();
-    try{ await window.storage.set(API_KEY, JSON.stringify(apiUrl), false); }catch(e){}
-    try{ await window.storage.set(CLIENT_ID_KEY, JSON.stringify(googleClientId), false); }catch(e){}
-    mostrarBotonGoogle();
-  });
-
   // ---- Login / sesión ----
   function mostrarLogin(){
     document.getElementById('appRoot').classList.add('app-hidden');
@@ -329,7 +330,6 @@
 
   function mostrarBotonGoogle(){
     document.getElementById('loginError').textContent = '';
-    if(!googleClientId){ document.getElementById('loginError').textContent = 'Falta configurar el Google Client ID (botón Configuración).'; return; }
     if(!window.google || !window.google.accounts){ document.getElementById('loginError').textContent = 'No se pudo cargar el botón de Google.'; return; }
     google.accounts.id.initialize({ client_id: googleClientId, callback: onGoogleCredential });
     document.getElementById('googleBtn').innerHTML = '';
@@ -350,12 +350,32 @@
         body: JSON.stringify({ credential: ultimoCredential })
       });
       const data = await res.json();
+
+      if(res.status === 402 && data.error === 'pago_requerido'){
+        mostrarPantallaPago(data);
+        return;
+      }
       if(!res.ok) throw new Error(data.mensaje || data.error || 'No se pudo iniciar sesión.');
+
+      document.getElementById('pagoBox').style.display = 'none';
+      document.getElementById('loginBox').style.display = 'block';
       await guardarSesionYEntrar(data);
     }catch(err){
       document.getElementById('loginError').textContent = err.message;
     }
   }
+
+  function mostrarPantallaPago(data){
+    document.getElementById('loginBox').style.display = 'none';
+    document.getElementById('pagoBox').style.display = 'block';
+    document.getElementById('pagoMensaje').textContent = data.mensaje || 'Hace falta activar el acceso con un pago único.';
+    document.getElementById('pagoPrecio').textContent = '$' + data.monto + ' ' + (data.moneda || 'ARS') + ' · pago único';
+    document.getElementById('pagoPagarBtn').onclick = function(){
+      if(data.initPoint) window.open(data.initPoint, '_blank');
+    };
+  }
+
+  document.getElementById('pagoReintentarBtn').addEventListener('click', intentarLoginConGoogle);
 
   async function guardarSesionYEntrar(data){
     token = data.token; miNombre = data.nombre; miEmail = data.email; miRol = data.rol;
@@ -798,11 +818,6 @@
 
   // ---- Init ----
   (async function init(){
-    try{ const a = await window.storage.get(API_KEY, false); apiUrl = a ? JSON.parse(a.value) : apiUrl; }catch(e){}
-    try{ const c = await window.storage.get(CLIENT_ID_KEY, false); googleClientId = c ? JSON.parse(c.value) : ''; }catch(e){}
-    document.getElementById('loginApiUrl').value = apiUrl;
-    document.getElementById('googleClientId').value = googleClientId;
-
     let stored = null;
     try{ const r = await window.storage.get(TOKEN_KEY, false); stored = r ? JSON.parse(r.value) : null; }catch(e){}
 
