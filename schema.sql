@@ -5,6 +5,9 @@ CREATE TABLE IF NOT EXISTS usuarios (
   nombre TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
   rol TEXT NOT NULL DEFAULT 'usuario', -- 'admin' | 'usuario'
+  pago_confirmado BOOLEAN NOT NULL DEFAULT false,
+  pago_id TEXT,
+  pago_fecha TIMESTAMP,
   created_at TIMESTAMP DEFAULT now()
 );
 
@@ -68,3 +71,8 @@ CREATE TABLE IF NOT EXISTS auditoria (
 );
 
 CREATE INDEX IF NOT EXISTS idx_auditoria_proyecto ON auditoria(proyecto_id);
+
+-- Por si la tabla usuarios ya existía sin estas columnas (deploys anteriores)
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pago_confirmado BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pago_id TEXT;
+ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pago_fecha TIMESTAMP;

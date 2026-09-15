@@ -4,6 +4,7 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const nodemailer = require('nodemailer');
+const { MercadoPagoConfig, Preference, Payment } = require('mercadopago');
 const { Pool } = require('pg');
 
 const app = express();
@@ -39,6 +40,67 @@ const pool = new Pool({
     : undefined
 });
 
+let mpClient = null;
+if (process.env.MP_ACCESS_TOKEN) {
+  mpClient = new MercadoPagoConfig({ accessToken: process.env.MP_ACCESS_TOKEN });
+} else {
+  console.warn('⚠️  Falta MP_ACCESS_TOKEN — nadie sin pago_confirmado=true va a poder loguearse hasta que esté configurado.');
+}
+
+const MONTO_MEMBRESIA = 10; // pesos argentinos, pago único
+
+async function crearPreferenciaPago(usuario) {
+  const preferenceClient = new Preference(mpClient);
+  const frontendUrl = process.env.FRONTEND_URL || 'https://seguimiento-frontend.onrender.com';
+  const pref = await preferenceClient.create({
+    body: {
+      items: [{
+        title: 'Membresía de acceso — Zambo Seguimiento',
+        quantity: 1,
+        unit_price: MONTO_MEMBRESIA,
+        currency_id: 'ARS'
+      }],
+      external_reference: String(usuario.id),
+      back_url: { success: frontendUrl, failure: frontendUrl, pending: frontendUrl },
+      notification_url: (process.env.BACKEND_URL || 'https://seguimiento-backend-e7mn.onrender.com') + '/api/pagos/webhook'
+    }
+  });
+  return pref.init_point;
+}
+
+// Busca en vivo en Mercado Pago si ya hay un pago aprobado para este usuario
+// (además del webhook, sirve de respaldo si la notificación todavía no llegó)
+async function tienePagoAprobado(usuarioId) {
+  if (!mpClient) return false;
+  const paymentClient = new Payment(mpClient);
+  const result = await paymentClient.search({
+    options: { external_reference: String(usuarioId), sort: 'date_created', criteria: 'desc' }
+  });
+  const pagos = (result.results || []);
+  return pagos.find((p) => p.status === 'approved') || null;
+}
+
+// Mercado Pago llama acá cuando cambia el estado de un pago
+app.post('/api/pagos/webhook', async (req, res) => {
+  try {
+    const paymentId = req.body?.data?.id || req.query['data.id'];
+    if (paymentId && mpClient) {
+      const paymentClient = new Payment(mpClient);
+      const pago = await paymentClient.get({ id: paymentId });
+      if (pago.status === 'approved' && pago.external_reference) {
+        await pool.query(
+          `UPDATE usuarios SET pago_confirmado = true, pago_id = $1, pago_fecha = now() WHERE id = $2`,
+          [String(pago.id), Number(pago.external_reference)]
+        );
+      }
+    }
+    res.sendStatus(200);
+  } catch (err) {
+    console.error('Error procesando webhook de Mercado Pago:', err.message);
+    res.sendStatus(200); // igual respondemos 200 para que MP no reintente en loop
+  }
+});
+
 // ---- Login con Google ----
 
 app.post('/api/auth/google', async (req, res) => {
@@ -58,11 +120,34 @@ app.post('/api/auth/google', async (req, res) => {
     }
 
     const result = await pool.query('SELECT * FROM usuarios WHERE email = $1', [email]);
-    const user = result.rows[0];
+    let user = result.rows[0];
     if (!user) {
       return res.status(403).json({
         error: 'no_registrado',
         mensaje: 'Tu cuenta de Google (' + email + ') no está registrada en Zambo. Pedile a un administrador que te dé de alta.'
+      });
+    }
+
+    if (!user.pago_confirmado) {
+      // Respaldo: chequeamos en vivo por si el webhook todavía no llegó
+      const pagoAprobado = await tienePagoAprobado(user.id);
+      if (pagoAprobado) {
+        await pool.query(
+          `UPDATE usuarios SET pago_confirmado = true, pago_id = $1, pago_fecha = now() WHERE id = $2`,
+          [String(pagoAprobado.id), user.id]
+        );
+        user.pago_confirmado = true;
+      }
+    }
+
+    if (!user.pago_confirmado) {
+      const initPoint = await crearPreferenciaPago(user);
+      return res.status(402).json({
+        error: 'pago_requerido',
+        mensaje: 'Para entrar por primera vez hace falta abonar la membresía de acceso.',
+        initPoint,
+        monto: MONTO_MEMBRESIA,
+        moneda: 'ARS'
       });
     }
 
