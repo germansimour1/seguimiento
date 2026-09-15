@@ -93,6 +93,31 @@ app.get('/api/auth/me', requireAuth, (req, res) => {
   res.json({ nombre: req.user.nombre, email: req.user.email, rol: req.user.rol });
 });
 
+// Endpoint interno para crear usuarios sin necesitar acceso externo a la base.
+// Protegido con SETUP_SECRET (variable de entorno). Corre dentro de la red de Render,
+// así que usa la misma conexión interna que el resto del backend.
+app.post('/api/setup/crear-usuario', async (req, res) => {
+  const { nombre, email, rol, secret } = req.body;
+  if (!process.env.SETUP_SECRET || secret !== process.env.SETUP_SECRET) {
+    return res.status(403).json({ error: 'Clave incorrecta.' });
+  }
+  if (!nombre || !email) {
+    return res.status(400).json({ error: 'Faltan nombre o email.' });
+  }
+  const rolFinal = rol === 'admin' ? 'admin' : 'usuario';
+  try {
+    const result = await pool.query(
+      `INSERT INTO usuarios (nombre, email, rol) VALUES ($1, $2, $3)
+       ON CONFLICT (email) DO UPDATE SET nombre = EXCLUDED.nombre, rol = EXCLUDED.rol
+       RETURNING id, nombre, email, rol`,
+      [nombre, email.toLowerCase().trim(), rolFinal]
+    );
+    res.json({ ok: true, usuario: result.rows[0] });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.use('/api', requireAuth);
 
 async function registrarAuditoria({ usuario, proyectoId, accion, entidad, entidadId, detalle }) {
