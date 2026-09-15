@@ -328,9 +328,17 @@
     mostrarBotonGoogle();
   }
 
-  function mostrarBotonGoogle(){
+  function mostrarBotonGoogle(intentos){
+    intentos = intentos || 0;
     document.getElementById('loginError').textContent = '';
-    if(!window.google || !window.google.accounts){ document.getElementById('loginError').textContent = 'No se pudo cargar el botón de Google.'; return; }
+    if(!window.google || !window.google.accounts){
+      if(intentos < 40){
+        setTimeout(function(){ mostrarBotonGoogle(intentos + 1); }, 150);
+      } else {
+        document.getElementById('loginError').textContent = 'No se pudo cargar el botón de Google. Recargá la página (Ctrl+Shift+R).';
+      }
+      return;
+    }
     google.accounts.id.initialize({ client_id: googleClientId, callback: onGoogleCredential });
     document.getElementById('googleBtn').innerHTML = '';
     google.accounts.id.renderButton(document.getElementById('googleBtn'), { theme: 'outline', size: 'large', width: 260 });
