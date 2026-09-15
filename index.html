@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Seguimiento de Proyecto — Zambo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Manrope:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -17,17 +17,22 @@
     --ink:#1B2430; --ink-soft:#5B6472;
     --accent:#5B4FE0; --accent-deep:#4438C4;
     --ok:#2E9E5B; --warn:#C98A1E; --bad:#D14343; --pend:#5B4FE0;
+    /* Marca Zambo Digital (misma paleta de la web) */
+    --zambo-ink:#150F2E; --zambo-panel:#1F1846; --zambo-paper:#F4F2FB;
+    --zambo-text-soft:#B9B2DE; --zambo-magenta:#FF3D77; --zambo-cyan:#23E5DB; --zambo-lime:#C6FF3D;
+    --zambo-line:rgba(255,255,255,0.14);
   }
   *{box-sizing:border-box;}
   body{margin:0;background:var(--paper);color:var(--ink);font-family:'Inter',system-ui,sans-serif;font-variant-numeric:tabular-nums;}
   h1,h2,h3,.brand,.nav-item,.btn{font-family:'Manrope',sans-serif;}
 
   /* ---- Login ---- */
-  .login-screen{position:fixed;inset:0;background:var(--paper);z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;overflow-y:auto;padding:20px 0;}
-  .login-box{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:30px;width:340px;max-width:90vw;}
-  .login-box h1{font-size:17px;margin:0 0 4px;}
-  .login-box .subtitle{margin-bottom:14px;color:var(--ink-soft);font-size:13px;}
-  .login-error{color:var(--bad);font-size:12.5px;margin-top:8px;min-height:16px;}
+  /* ---- Login (misma identidad que zambodigital) ---- */
+  .login-screen{position:fixed;inset:0;background:var(--zambo-ink);z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;overflow-y:auto;padding:20px 0;}
+  .login-box{background:var(--zambo-panel);border:1px solid var(--zambo-line);border-radius:14px;padding:34px;width:340px;max-width:90vw;text-align:center;}
+  .login-box h1{font-family:'Sora',sans-serif;font-size:19px;font-weight:700;margin:0 0 4px;color:var(--zambo-paper);}
+  .login-box .subtitle{margin-bottom:14px;color:var(--zambo-text-soft);font-size:13px;}
+  .login-error{color:var(--zambo-magenta);font-size:12.5px;margin-top:8px;min-height:16px;}
   .app-hidden{display:none;}
   .gear-btn{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:8px 12px;cursor:pointer;font-size:13px;color:var(--ink-soft);width:100%;}
 
@@ -146,16 +151,15 @@
       <polygon points="195,95 187,90 187,100" fill="#150F2E" opacity="0.15"/>
     </svg>
     <h1>Seguimiento de Proyecto</h1>
-    <div class="subtitle">Iniciá sesión con la cuenta de Google con la que te dieron de alta en Zambo.</div>
-    <div id="googleBtn" style="display:flex;justify-content:center;margin-bottom:6px;"></div>
+    <div id="googleBtn" style="display:flex;justify-content:center;margin:16px 0 6px;"></div>
     <div class="login-error" id="loginError"></div>
   </div>
   <div class="login-box" id="pagoBox" style="display:none;">
     <h1>Falta activar tu acceso</h1>
     <div class="subtitle" id="pagoMensaje"></div>
-    <div style="font-size:30px;font-weight:800;margin:10px 0;" id="pagoPrecio"></div>
-    <button type="button" class="btn btn-primary" style="width:100%;margin-top:6px;" id="pagoPagarBtn">Pagar membresía</button>
-    <button type="button" class="btn btn-ghost" style="width:100%;margin-top:8px;" id="pagoReintentarBtn">Ya pagué, reintentar</button>
+    <div style="font-family:'Sora',sans-serif;font-size:30px;font-weight:800;margin:10px 0;color:var(--zambo-paper);" id="pagoPrecio"></div>
+    <button type="button" style="width:100%;margin-top:6px;border:none;border-radius:6px;padding:11px;font-weight:700;font-size:14px;cursor:pointer;background:var(--zambo-magenta);color:#fff;" id="pagoPagarBtn">Pagar membresía</button>
+    <button type="button" style="width:100%;margin-top:8px;border:1px solid var(--zambo-line);border-radius:6px;padding:11px;font-weight:700;font-size:14px;cursor:pointer;background:transparent;color:var(--zambo-text-soft);" id="pagoReintentarBtn">Ya pagué, reintentar</button>
   </div>
 </div>
 
@@ -341,7 +345,7 @@
     }
     google.accounts.id.initialize({ client_id: googleClientId, callback: onGoogleCredential });
     document.getElementById('googleBtn').innerHTML = '';
-    google.accounts.id.renderButton(document.getElementById('googleBtn'), { theme: 'outline', size: 'large', width: 260 });
+    google.accounts.id.renderButton(document.getElementById('googleBtn'), { theme: 'filled_black', size: 'large', width: 260, shape: 'pill' });
   }
 
   function onGoogleCredential(response){
