@@ -1,0 +1,23 @@
+{
+  "name": "seguimiento2-backend",
+  "version": "2.0.0",
+  "description": "Backend de seguimiento de proyecto: login con Google, proyectos, roles y compartir entre usuarios registrados",
+  "main": "server.js",
+  "scripts": {
+    "crear-usuario": "node crear-usuario.js",
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "google-auth-library": "^9.14.1",
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^6.9.14",
+    "pg": "^8.12.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}
