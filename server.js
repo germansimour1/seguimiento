@@ -135,7 +135,7 @@ app.post('/api/auth/google', async (req, res) => {
       user = insertRes.rows[0];
     }
 
-    if (!user.pago_confirmado) {
+    if (!user.pago_confirmado && mpClient) {
       // Respaldo: chequeamos en vivo por si el webhook todavía no llegó
       const pagoAprobado = await tienePagoAprobado(user.id);
       if (pagoAprobado) {
@@ -147,7 +147,9 @@ app.post('/api/auth/google', async (req, res) => {
       }
     }
 
-    if (!user.pago_confirmado) {
+    // Mientras Mercado Pago no esté configurado (falta MP_ACCESS_TOKEN), el pago
+    // no bloquea el acceso — se activa solo cuando se cargue esa variable.
+    if (!user.pago_confirmado && mpClient) {
       const initPoint = await crearPreferenciaPago(user);
       return res.status(402).json({
         error: 'pago_requerido',
