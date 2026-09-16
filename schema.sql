@@ -47,6 +47,17 @@ CREATE TABLE IF NOT EXISTS tarea_dependencias (
   CHECK (tarea_id <> depende_de_id)
 );
 
+CREATE TABLE IF NOT EXISTS mensajes (
+  id SERIAL PRIMARY KEY,
+  proyecto_id INTEGER NOT NULL REFERENCES proyectos(id) ON DELETE CASCADE,
+  usuario_id INTEGER NOT NULL REFERENCES usuarios(id),
+  usuario_nombre TEXT NOT NULL,
+  texto TEXT NOT NULL,
+  created_at TIMESTAMP DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_mensajes_proyecto ON mensajes(proyecto_id);
+
 CREATE INDEX IF NOT EXISTS idx_tareas_proyecto ON tareas(proyecto_id);
 CREATE INDEX IF NOT EXISTS idx_dep_tarea ON tarea_dependencias(tarea_id);
 CREATE INDEX IF NOT EXISTS idx_dep_depende ON tarea_dependencias(depende_de_id);
