@@ -122,10 +122,17 @@ app.post('/api/auth/google', async (req, res) => {
     const result = await pool.query('SELECT * FROM usuarios WHERE email = $1', [email]);
     let user = result.rows[0];
     if (!user) {
-      return res.status(403).json({
-        error: 'no_registrado',
-        mensaje: 'Tu cuenta de Google (' + email + ') no está registrada en Zambo. Pedile a un administrador que te dé de alta.'
-      });
+      // Regla nueva: no hace falta que un admin dé de alta a nadie antes.
+      // Cualquier cuenta de Google válida puede entrar — el pago de la membresía
+      // sigue siendo el filtro real de acceso (se chequea más abajo).
+      const nombreGoogle = payload.name || email.split('@')[0];
+      const countRes = await pool.query('SELECT COUNT(*) FROM usuarios');
+      const esElPrimero = Number(countRes.rows[0].count) === 0;
+      const insertRes = await pool.query(
+        `INSERT INTO usuarios (nombre, email, rol) VALUES ($1, $2, $3) RETURNING *`,
+        [nombreGoogle, email, esElPrimero ? 'admin' : 'usuario']
+      );
+      user = insertRes.rows[0];
     }
 
     if (!user.pago_confirmado) {
@@ -216,6 +223,42 @@ async function registrarAuditoria({ usuario, proyectoId, accion, entidad, entida
     console.error('No se pudo registrar auditoría:', err.message);
   }
 }
+
+// ---- Chat interno del proyecto ----
+
+app.get('/api/proyectos/:id/mensajes', async (req, res) => {
+  const proyectoId = req.params.id;
+  try {
+    if (!(await tieneAccesoProyecto(proyectoId, req.user.sub))) {
+      return res.status(403).json({ error: 'No tenés acceso a este proyecto.' });
+    }
+    const result = await pool.query(
+      `SELECT * FROM mensajes WHERE proyecto_id = $1 ORDER BY created_at ASC LIMIT 300`,
+      [proyectoId]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/proyectos/:id/mensajes', async (req, res) => {
+  const proyectoId = req.params.id;
+  const { texto } = req.body;
+  if (!texto || !texto.trim()) return res.status(400).json({ error: 'El mensaje no puede estar vacío.' });
+  try {
+    if (!(await tieneAccesoProyecto(proyectoId, req.user.sub))) {
+      return res.status(403).json({ error: 'No tenés acceso a este proyecto.' });
+    }
+    const result = await pool.query(
+      `INSERT INTO mensajes (proyecto_id, usuario_id, usuario_nombre, texto) VALUES ($1,$2,$3,$4) RETURNING *`,
+      [proyectoId, req.user.sub, req.user.nombre, texto.trim()]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.get('/api/proyectos/:id/auditoria', async (req, res) => {
   const proyectoId = req.params.id;
