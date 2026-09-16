@@ -10,6 +10,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root{
     --sidebar:#14181F; --sidebar-soft:#8A93A3; --sidebar-line:#252B36;
@@ -121,6 +122,37 @@
   .dep-list input{width:auto;}
 
   .empty{color:var(--ink-soft);font-size:13px;padding:14px;}
+
+  /* ---- Tablero Kanban ---- */
+  .tareas-toggle.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .kanban-board{display:flex;gap:14px;align-items:flex-start;overflow-x:auto;padding-bottom:6px;}
+  .kanban-column{background:#F2F4F7;border-radius:8px;padding:10px;width:280px;flex-shrink:0;min-height:120px;transition:background 0.15s ease;}
+  .kanban-column.drag-over{background:#E4E9F5;}
+  .kanban-column-header{display:flex;justify-content:space-between;align-items:center;padding:4px 6px 10px;font-size:13px;font-weight:700;}
+  .kanban-count{background:rgba(0,0,0,0.08);border-radius:10px;padding:1px 8px;font-size:11px;color:var(--ink-soft);}
+  .kanban-card{background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:10px 11px;margin-bottom:8px;cursor:grab;box-shadow:0 1px 2px rgba(20,20,30,0.05);}
+  .kanban-card:active{cursor:grabbing;}
+  .kanban-card.dragging{opacity:0.4;}
+  .kanban-card-title{font-size:13px;font-weight:600;margin-bottom:6px;}
+  .kanban-card-meta{display:flex;justify-content:space-between;align-items:center;font-size:11px;color:var(--ink-soft);margin-top:8px;}
+  .kanban-empty{font-size:12px;color:var(--ink-soft);padding:10px 6px;text-align:center;}
+
+  /* ---- Gráficos del dashboard ---- */
+  .chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;}
+  .chart-card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px;}
+  .chart-card-title{font-size:12.5px;font-weight:700;color:var(--ink-soft);margin-bottom:10px;}
+  .chart-canvas-wrap{height:220px;position:relative;}
+
+  /* ---- Avance general (Opción 2) ---- */
+  .avance-card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:18px 20px;margin-bottom:18px;}
+  .avance-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:9px;flex-wrap:wrap;gap:6px;}
+  .avance-num{font-family:'Manrope',sans-serif;font-size:30px;font-weight:800;}
+  .avance-bar-track{background:#EDF0F4;border-radius:8px;height:14px;overflow:hidden;margin-bottom:16px;}
+  .avance-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),#8B7FFF);}
+  .avance-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;}
+  .avance-item{border:1px solid var(--line);border-radius:7px;padding:10px 12px;}
+  .avance-item-name{font-size:12.5px;font-weight:600;margin-bottom:6px;}
+  .avance-item-meta{font-size:11px;color:var(--ink-soft);margin-top:6px;}
   .view{display:none;}
   .view.active{display:block;}
 </style>
@@ -206,37 +238,69 @@
           <div class="kpi-card"><div class="kpi-value" id="kpiAtrasadas" style="color:var(--bad);">—</div><div class="kpi-label">Tareas atrasadas</div></div>
         </div>
 
-        <div class="section-title">Próximas y atrasadas</div>
-        <table><thead><tr><th>Tarea</th><th>Equipo</th><th>Prioridad</th><th>Fin</th><th>Estado</th></tr></thead>
-        <tbody id="dashboardTareasBody"><tr><td colspan="5" class="empty">Cargando…</td></tr></tbody></table>
+        <div class="avance-card">
+          <div class="avance-top">
+            <span class="avance-num" id="avanceGeneralNum">—</span>
+            <span style="color:var(--ink-soft);font-size:12.5px;">avance general del proyecto</span>
+          </div>
+          <div class="avance-bar-track"><div class="avance-bar-fill" id="avanceGeneralBar" style="width:0%;"></div></div>
+          <div class="avance-cards" id="avanceEnCurso"></div>
+        </div>
+
+        <div class="section-title">Distribución de tareas</div>
+        <div class="chart-grid">
+          <div class="chart-card">
+            <div class="chart-card-title">Por estado</div>
+            <div class="chart-canvas-wrap"><canvas id="chartEstado"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-card-title">Por prioridad</div>
+            <div class="chart-canvas-wrap"><canvas id="chartPrioridad"></canvas></div>
+          </div>
+        </div>
       </section>
 
       <section class="view" id="view-tareas">
         <div class="page-title">Tareas</div>
         <div class="page-sub">Tareas del proyecto seleccionado.</div>
-        <div class="filters-row">
-          <div class="field" style="max-width:170px;">
-            <label for="filtroEstado">Estado</label>
-            <select id="filtroEstado"><option value="">Todos</option><option value="pendiente">Pendiente</option><option value="completada">Completada</option><option value="atrasada">Atrasada</option></select>
-          </div>
-          <div class="field" style="max-width:150px;">
-            <label for="filtroPrioridad">Prioridad</label>
-            <select id="filtroPrioridad"><option value="">Todas</option><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></select>
-          </div>
-          <div class="field" style="max-width:190px;">
-            <label for="filtroEquipo">Equipo</label>
-            <input type="text" id="filtroEquipo" placeholder="Ej: Juan">
-          </div>
-          <button class="btn btn-ghost" id="aplicarFiltros">Filtrar</button>
-          <div style="flex:1;"></div>
-          <button class="btn btn-ghost" id="exportarExcelBtn">Exportar Excel</button>
-          <button class="btn btn-ghost" id="exportarPdfBtn">Exportar PDF</button>
-          <button class="btn btn-primary" id="nuevaTareaBtn">+ Nueva tarea</button>
+
+        <div style="display:flex;gap:6px;margin-bottom:14px;">
+          <button type="button" class="btn btn-ghost tareas-toggle active" id="toggleLista">☰ Lista</button>
+          <button type="button" class="btn btn-ghost tareas-toggle" id="toggleTablero">▤ Tablero</button>
         </div>
-        <table>
-          <thead><tr><th>Tarea</th><th>Equipo</th><th>Prioridad</th><th>Inicio</th><th>Fin</th><th>Horas</th><th>Avance</th><th>Estado</th><th></th></tr></thead>
-          <tbody id="tareasBody"><tr><td colspan="9" class="empty">Cargando…</td></tr></tbody>
-        </table>
+
+        <div id="tareasVistaLista">
+          <div class="filters-row">
+            <div class="field" style="max-width:170px;">
+              <label for="filtroEstado">Estado</label>
+              <select id="filtroEstado"><option value="">Todos</option><option value="pendiente">Pendiente</option><option value="completada">Completada</option><option value="atrasada">Atrasada</option></select>
+            </div>
+            <div class="field" style="max-width:150px;">
+              <label for="filtroPrioridad">Prioridad</label>
+              <select id="filtroPrioridad"><option value="">Todas</option><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></select>
+            </div>
+            <div class="field" style="max-width:190px;">
+              <label for="filtroEquipo">Equipo</label>
+              <input type="text" id="filtroEquipo" placeholder="Ej: Juan">
+            </div>
+            <button class="btn btn-ghost" id="aplicarFiltros">Filtrar</button>
+            <div style="flex:1;"></div>
+            <button class="btn btn-ghost" id="exportarExcelBtn">Exportar Excel</button>
+            <button class="btn btn-ghost" id="exportarPdfBtn">Exportar PDF</button>
+            <button class="btn btn-primary" id="nuevaTareaBtn">+ Nueva tarea</button>
+          </div>
+          <table>
+            <thead><tr><th>Tarea</th><th>Equipo</th><th>Prioridad</th><th>Inicio</th><th>Fin</th><th>Horas</th><th>Avance</th><th>Estado</th><th></th></tr></thead>
+            <tbody id="tareasBody"><tr><td colspan="9" class="empty">Cargando…</td></tr></tbody>
+          </table>
+        </div>
+
+        <div id="tareasVistaTablero" style="display:none;">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+            <button class="btn btn-primary" id="nuevaTareaBtnKanban">+ Nueva tarea</button>
+          </div>
+          <div class="kanban-board" id="kanbanBoard"></div>
+        </div>
       </section>
 
       <section class="view" id="view-gantt">
@@ -572,11 +636,13 @@
       renderDashboard(dash);
       renderTareas();
       renderGantt();
+      if(document.getElementById('tareasVistaTablero').style.display !== 'none') renderKanban();
     }catch(e){
       tareas = [];
       renderDashboard({ avanceGeneral:0, horasTotales:0, pendientes:0, completadas:0, atrasadas:0 });
       renderTareas();
       renderGantt();
+      if(document.getElementById('tareasVistaTablero').style.display !== 'none') renderKanban();
     }
   }
 
@@ -650,18 +716,82 @@
       banner.style.display = 'none';
     }
 
-    const relevantes = tareas.filter(function(t){ return t.estado !== 'completada'; })
-      .sort(function(a,b){ return (a.fecha_fin || '9999').localeCompare(b.fecha_fin || '9999'); }).slice(0, 8);
+    renderAvanceGeneral(dash);
+    renderCharts();
+  }
 
-    const body = document.getElementById('dashboardTareasBody');
-    if(!proyectoActivoId){ body.innerHTML = '<tr><td colspan="5" class="empty">Creá un proyecto para empezar a cargar tareas.</td></tr>'; return; }
-    if(relevantes.length === 0){ body.innerHTML = '<tr><td colspan="5" class="empty">No hay tareas pendientes ni atrasadas 🎉</td></tr>'; return; }
-    body.innerHTML = relevantes.map(function(t){
-      return '<tr><td>' + t.nombre + '</td><td>' + (t.equipo || '—') + '</td>' +
-        '<td><span class="badge badge-' + t.prioridad + '">' + prioridadLabel(t.prioridad) + '</span></td>' +
-        '<td>' + fmtDate(t.fecha_fin) + '</td>' +
-        '<td><span class="badge badge-' + t.estado + '">' + estadoLabel(t.estado) + '</span></td></tr>';
+  function renderAvanceGeneral(dash){
+    const p = pct(dash.avanceGeneral);
+    document.getElementById('avanceGeneralNum').textContent = p + '%';
+    document.getElementById('avanceGeneralBar').style.width = p + '%';
+
+    const enCurso = tareas
+      .filter(function(t){ return pct(t.avance_pct) > 0 && pct(t.avance_pct) < 100; })
+      .sort(function(a,b){ return pct(b.avance_pct) - pct(a.avance_pct); })
+      .slice(0, 8);
+
+    const cont = document.getElementById('avanceEnCurso');
+    if(enCurso.length === 0){
+      cont.innerHTML = '<div class="empty" style="padding:0;">No hay tareas en curso ahora mismo.</div>';
+      return;
+    }
+    cont.innerHTML = enCurso.map(function(t){
+      return '<div class="avance-item">' +
+        '<div class="avance-item-name">' + t.nombre + '</div>' +
+        '<div class="mini-progress" style="width:100%;"><span class="mini-progress-fill" style="width:' + pct(t.avance_pct) + '%;background:' + colorAvance(pct(t.avance_pct)) + '"></span></div>' +
+        '<div class="avance-item-meta">' + (t.equipo || 'sin equipo') + ' · ' + pct(t.avance_pct) + '%</div>' +
+      '</div>';
     }).join('');
+  }
+
+  let chartEstadoInstance = null;
+  let chartPrioridadInstance = null;
+
+  function renderCharts(){
+    const porEstado = { pendiente: 0, atrasada: 0, completada: 0 };
+    const porPrioridad = { alta: 0, media: 0, baja: 0 };
+    tareas.forEach(function(t){
+      if(porEstado[t.estado] !== undefined) porEstado[t.estado]++;
+      if(porPrioridad[t.prioridad] !== undefined) porPrioridad[t.prioridad]++;
+    });
+
+    const ctxEstado = document.getElementById('chartEstado').getContext('2d');
+    if(chartEstadoInstance) chartEstadoInstance.destroy();
+    chartEstadoInstance = new Chart(ctxEstado, {
+      type: 'doughnut',
+      data: {
+        labels: ['Pendiente', 'Atrasada', 'Completada'],
+        datasets: [{
+          data: [porEstado.pendiente, porEstado.atrasada, porEstado.completada],
+          backgroundColor: ['#5B4FE0', '#D14343', '#2E9E5B'],
+          borderWidth: 0
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } }
+      }
+    });
+
+    const ctxPrioridad = document.getElementById('chartPrioridad').getContext('2d');
+    if(chartPrioridadInstance) chartPrioridadInstance.destroy();
+    chartPrioridadInstance = new Chart(ctxPrioridad, {
+      type: 'bar',
+      data: {
+        labels: ['Alta', 'Media', 'Baja'],
+        datasets: [{
+          data: [porPrioridad.alta, porPrioridad.media, porPrioridad.baja],
+          backgroundColor: ['#D14343', '#C98A1E', '#2E6BE6'],
+          borderRadius: 5,
+          maxBarThickness: 46
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { precision: 0 } } }
+      }
+    });
   }
 
   // ---- Tareas ----
@@ -692,6 +822,111 @@
 
   document.getElementById('aplicarFiltros').addEventListener('click', renderTareas);
   document.getElementById('filtroEquipo').addEventListener('keydown', function(e){ if(e.key === 'Enter') renderTareas(); });
+
+  // ---- Toggle Lista / Tablero ----
+  document.getElementById('toggleLista').addEventListener('click', function(){
+    document.getElementById('toggleLista').classList.add('active');
+    document.getElementById('toggleTablero').classList.remove('active');
+    document.getElementById('tareasVistaLista').style.display = 'block';
+    document.getElementById('tareasVistaTablero').style.display = 'none';
+  });
+  document.getElementById('toggleTablero').addEventListener('click', function(){
+    document.getElementById('toggleTablero').classList.add('active');
+    document.getElementById('toggleLista').classList.remove('active');
+    document.getElementById('tareasVistaLista').style.display = 'none';
+    document.getElementById('tareasVistaTablero').style.display = 'block';
+    renderKanban();
+  });
+  document.getElementById('nuevaTareaBtnKanban').addEventListener('click', function(){
+    document.getElementById('nuevaTareaBtn').click();
+  });
+
+  // ---- Tablero Kanban ----
+  const KANBAN_COLUMNAS = [
+    { estado: 'pendiente', label: 'Pendiente' },
+    { estado: 'atrasada', label: 'Atrasada' },
+    { estado: 'completada', label: 'Completada' }
+  ];
+
+  function renderKanbanCard(t){
+    const depsHtml = (t.dependencias || []).length
+      ? '<div class="dep-tag">↳ depende de ' + t.dependencias.length + '</div>' : '';
+    return '<div class="kanban-card" draggable="true" data-id="' + t.id + '">' +
+      '<div class="kanban-card-title">' + t.nombre + '</div>' +
+      '<span class="badge badge-' + t.prioridad + '">' + prioridadLabel(t.prioridad) + '</span>' +
+      depsHtml +
+      '<div class="mini-progress" style="width:100%;margin-top:8px;"><span class="mini-progress-fill" style="width:' + pct(t.avance_pct) + '%;background:' + colorAvance(pct(t.avance_pct)) + '"></span></div>' +
+      '<div class="kanban-card-meta"><span>' + (t.equipo || 'sin equipo') + '</span><span>' + fmtDate(t.fecha_fin) + '</span></div>' +
+    '</div>';
+  }
+
+  function renderKanban(){
+    const board = document.getElementById('kanbanBoard');
+    if(!proyectoActivoId){ board.innerHTML = '<div class="empty">Creá o seleccioná un proyecto primero.</div>'; return; }
+
+    board.innerHTML = KANBAN_COLUMNAS.map(function(col){
+      const items = tareas.filter(function(t){ return t.estado === col.estado; });
+      const cardsHtml = items.length
+        ? items.map(renderKanbanCard).join('')
+        : '<div class="kanban-empty">Sin tareas acá</div>';
+      return '<div class="kanban-column" data-estado="' + col.estado + '">' +
+        '<div class="kanban-column-header"><span>' + col.label + '</span><span class="kanban-count">' + items.length + '</span></div>' +
+        '<div class="kanban-dropzone">' + cardsHtml + '</div>' +
+      '</div>';
+    }).join('');
+
+    // Tarjetas: click para editar, y arrastrables
+    board.querySelectorAll('.kanban-card').forEach(function(card){
+      card.addEventListener('click', function(){ abrirModalEdicion(card.dataset.id); });
+      card.addEventListener('dragstart', function(e){
+        card.classList.add('dragging');
+        e.dataTransfer.setData('text/plain', card.dataset.id);
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      card.addEventListener('dragend', function(){ card.classList.remove('dragging'); });
+    });
+
+    // Columnas: reciben el drop
+    board.querySelectorAll('.kanban-column').forEach(function(col){
+      col.addEventListener('dragover', function(e){
+        e.preventDefault();
+        col.classList.add('drag-over');
+      });
+      col.addEventListener('dragleave', function(){ col.classList.remove('drag-over'); });
+      col.addEventListener('drop', async function(e){
+        e.preventDefault();
+        col.classList.remove('drag-over');
+        const id = e.dataTransfer.getData('text/plain');
+        const nuevoEstado = col.dataset.estado;
+        await moverTareaKanban(id, nuevoEstado);
+      });
+    });
+  }
+
+  async function moverTareaKanban(id, nuevoEstado){
+    const t = tareas.find(function(x){ return String(x.id) === String(id); });
+    if(!t || t.estado === nuevoEstado) return;
+
+    // "Atrasada" es una consecuencia de la fecha, no un estado que se fuerce a mano.
+    if(nuevoEstado === 'atrasada'){
+      alert('El estado "Atrasada" lo calcula el sistema solo según la fecha de fin — no se puede arrastrar una tarea ahí directamente.');
+      renderKanban();
+      return;
+    }
+
+    const nuevoAvance = nuevoEstado === 'completada' ? 1 : 0;
+    try{
+      await authFetch('/api/tareas/' + id, {
+        method: 'PUT', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ avance_pct: nuevoAvance })
+      });
+      await cargarTareasYDashboard();
+      renderKanban();
+    }catch(err){
+      alert('No se pudo mover la tarea.');
+      renderKanban();
+    }
+  }
 
   function filasParaExportar(){
     return tareas.map(function(t){
