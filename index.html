@@ -40,6 +40,15 @@
   /* ---- Shell / sidebar ---- */
   .shell{display:flex;min-height:100vh;}
   .sidebar{width:250px;flex-shrink:0;background:var(--sidebar);color:#fff;display:flex;flex-direction:column;padding:20px 16px;}
+
+  /* ---- Topbar y overlay para mobile (ocultos en escritorio) ---- */
+  .mobile-topbar{display:none;align-items:center;gap:12px;background:var(--sidebar);color:#fff;padding:12px 14px;position:sticky;top:0;z-index:70;}
+  .mobile-topbar .brand{margin:0;}
+  .hamburger-btn{background:none;border:1px solid var(--sidebar-line);color:#fff;border-radius:6px;width:38px;height:38px;flex-shrink:0;font-size:18px;line-height:1;cursor:pointer;}
+  .sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(10,12,18,0.5);z-index:75;}
+  .sidebar-backdrop.open{display:block;}
+  .table-wrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:8px;}
+  .table-wrap table{min-width:640px;}
   .brand{font-weight:800;font-size:15px;letter-spacing:-0.01em;margin-bottom:2px;}
   .brand span{color:var(--accent);}
   .user-line{color:var(--sidebar-soft);font-size:11.5px;margin-bottom:18px;}
@@ -155,6 +164,54 @@
   .avance-item-meta{font-size:11px;color:var(--ink-soft);margin-top:6px;}
   .view{display:none;}
   .view.active{display:block;}
+
+  /* ==================================================================
+     Responsive / mobile
+     ================================================================== */
+  html{-webkit-text-size-adjust:100%;}
+  body{overflow-x:hidden;}
+  img,svg,canvas{max-width:100%;}
+
+  @media (max-width:880px){
+    .mobile-topbar{display:flex;}
+
+    .shell{display:block;}
+    .sidebar{
+      position:fixed;top:0;left:0;bottom:0;z-index:80;
+      transform:translateX(-100%);transition:transform 0.22s ease;
+      box-shadow:2px 0 18px rgba(0,0,0,0.28);
+      width:78vw;max-width:280px;
+    }
+    .sidebar.open{transform:translateX(0);}
+
+    .main{padding:18px 16px;max-width:100%;}
+
+    .login-box{padding:26px 22px;}
+
+    .field-row{flex-direction:column;gap:0;}
+    .filters-row{gap:8px;}
+    .filters-row .field{max-width:none !important;width:100%;}
+
+    .modal{width:100%;padding:18px;}
+
+    .kanban-board{gap:10px;}
+    .kanban-column{width:82vw;max-width:280px;}
+
+    #chatMensajes{height:min(420px,55vh);}
+
+    .avance-top{align-items:flex-start;}
+  }
+
+  @media (max-width:480px){
+    .main{padding:14px 12px;}
+    .page-title{font-size:17px;}
+    .kpi-grid{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;}
+    .kpi-value{font-size:20px;}
+    .chart-grid{grid-template-columns:1fr;}
+    .avance-cards{grid-template-columns:1fr;}
+    .modal{padding:16px;}
+    .login-box{width:100%;padding:22px 18px;}
+  }
 </style>
 </head>
 <body>
@@ -196,8 +253,13 @@
 </div>
 
 <div id="appRoot" class="app-hidden">
+  <div class="mobile-topbar">
+    <button type="button" class="hamburger-btn" id="hamburgerBtn" aria-label="Abrir menú">☰</button>
+    <div class="brand">Zambo<span>·Seguimiento</span></div>
+  </div>
+  <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
   <div class="shell">
-    <div class="sidebar">
+    <div class="sidebar" id="sidebar">
       <div class="brand">Zambo<span>·Seguimiento</span></div>
       <div class="user-line" id="userLine">—</div>
 
@@ -289,10 +351,12 @@
             <button class="btn btn-ghost" id="exportarPdfBtn">Exportar PDF</button>
             <button class="btn btn-primary" id="nuevaTareaBtn">+ Nueva tarea</button>
           </div>
+          <div class="table-wrap">
           <table>
             <thead><tr><th>Tarea</th><th>Equipo</th><th>Prioridad</th><th>Inicio</th><th>Fin</th><th>Horas</th><th>Avance</th><th>Estado</th><th></th></tr></thead>
             <tbody id="tareasBody"><tr><td colspan="9" class="empty">Cargando…</td></tr></tbody>
           </table>
+          </div>
         </div>
 
         <div id="tareasVistaTablero" style="display:none;">
@@ -312,10 +376,12 @@
       <section class="view" id="view-auditoria">
         <div class="page-title">Auditoría</div>
         <div class="page-sub">Quién hizo qué y cuándo, en este proyecto.</div>
+        <div class="table-wrap">
         <table>
           <thead><tr><th>Fecha</th><th>Usuario</th><th>Acción</th><th>Entidad</th><th>Detalle</th></tr></thead>
           <tbody id="auditoriaBody"><tr><td colspan="5" class="empty">Cargando…</td></tr></tbody>
         </table>
+        </div>
       </section>
 
       <section class="view" id="view-chat">
@@ -485,6 +551,20 @@
     await cargarProyectos();
   }
 
+  // ---- Menú móvil (sidebar tipo cajón en pantallas chicas) ----
+  function abrirSidebarMovil(){
+    document.getElementById('sidebar').classList.add('open');
+    document.getElementById('sidebarBackdrop').classList.add('open');
+  }
+  function cerrarSidebarMovil(){
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebarBackdrop').classList.remove('open');
+  }
+  var hamburgerBtn = document.getElementById('hamburgerBtn');
+  if(hamburgerBtn) hamburgerBtn.addEventListener('click', abrirSidebarMovil);
+  var sidebarBackdrop = document.getElementById('sidebarBackdrop');
+  if(sidebarBackdrop) sidebarBackdrop.addEventListener('click', cerrarSidebarMovil);
+
   // ---- Navegación de pestañas ----
   let chatPollTimer = null;
 
@@ -494,6 +574,7 @@
       document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
       btn.classList.add('active');
       document.getElementById('view-' + btn.dataset.view).classList.add('active');
+      cerrarSidebarMovil();
       if(btn.dataset.view === 'auditoria') cargarAuditoria();
       if(btn.dataset.view === 'chat'){
         cargarMensajes(true);
